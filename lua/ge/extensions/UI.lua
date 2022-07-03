@@ -12,6 +12,7 @@ print("Loading UI...")
 
 local players = {} -- { 'apple', 'banana', 'meow' }
 local pings = {}   -- { 'apple' = 12, 'banana' = 54, 'meow' = 69 }
+local UIqueue = {}
 
 
 local function updateLoading(data)
@@ -42,13 +43,14 @@ local function updatePlayersList(playersString)
 end
 
 
-local function updateQueue(spawns, edits, s)
-	local UIqueue = {spawnCount = tableSize(spawns), editCount = tableSize(edits)}
-	if s == nil then
-		s = UIqueue.spawnCount+UIqueue.editCount>0
-	end
-	UIqueue.show = s
+local function sendQueue() -- sends queue to UI
 	guihooks.trigger("setQueue", UIqueue)
+end
+
+local function updateQueue( spawnCount, editCount)
+	UIqueue = {spawnCount = spawnCount, editCount = editCount}
+	UIqueue.show = spawnCount+editCount > 0
+	sendQueue()
 end
 
 local function setPing(ping)
@@ -89,14 +91,20 @@ end
 
 local function showNotification(text, type)
 	if type and type == "error" then
-		print("UI Error > "..text)
+		log('I', 'showNotification', "[UI Error] > "..tostring(text))
 	else
-		print("[Message] > "..text)
+		log('I', 'showNotification', "[Message] > "..tostring(text))
+		local leftName = string.match(text, "^(.+) left the server!$")
+		if leftName then MPVehicleGE.onPlayerLeft(leftName) end
+		--local joinedName = string.match(text, "^Welcome (.+)!$")
+		--if joinedName then MPVehicleGE.onPlayerJoined(joinedName) end
 	end
 	ui_message(''..text, 10, nil, nil)
 end
 
-
+local function showMdDialog(options)
+	guihooks.trigger("showMdDialog", options)
+end
 
 local function chatMessage(rawMessage)
 	local message = string.sub(rawMessage, 2)
@@ -110,6 +118,7 @@ end
 local function chatSend(msg)
 	local c = 'C:'..MPConfig.getNickname()..": "..msg
 	MPGameNetwork.send(c)
+	TriggerClientEvent("ChatMessageSent", c)
 end
 
 
@@ -145,15 +154,8 @@ local function ready(src)
 end
 
 
-
-local function setVehPing(vehicleID, ping)
-	--print("Vehicle "..vehicleID.." has ping "..ping)
-	local nickmap = MPVehicleGE.getNicknameMap()
-
-	if not MPVehicleGE.isOwn(vehicleID) and nickmap[tonumber(vehicleID)] ~= nil then
-		pings[nickmap[tonumber(vehicleID)]] = ping
-		--print("belongs to: "..nickmap[tonumber(vehicleID)])
-	end
+local function setPlayerPing(playerName, ping)
+	pings[playerName] = ping
 end
 
 M.updateLoading = updateLoading
@@ -166,9 +168,10 @@ M.chatMessage = chatMessage
 M.chatSend = chatSend
 M.setPlayerCount = setPlayerCount
 M.showNotification = showNotification
-M.setVehPing = setVehPing
+M.setPlayerPing = setPlayerPing
 M.updateQueue = updateQueue
-
+M.sendQueue = sendQueue
+M.showMdDialog = showMdDialog
 
 print("UI loaded")
 return M
